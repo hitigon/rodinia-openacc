@@ -2,7 +2,9 @@ Testing Environment:
 --------------------
 
 OS: Linux
+
 Compiler: hmpp, gcc
+
 Resource Manager: SLURM
 
 Compile:
@@ -10,7 +12,7 @@ Compile:
 
 type 'make'
 
-if you are using PGI, please modify Makefile
+if you are using PGI, you may need to adjust the codes and Makefiles
 
 Usage:
 ------
@@ -25,4 +27,9 @@ Profile:
 Please set the environment variable:
 export CUDA_PROFILE=1
 
-Run awktime.sh for getting total execution time of CPU and GPU
+Run awktime.sh for getting total execution time of CPU and GPU.
+
+To-do:
+-----
+
+Update the awktime.sh
