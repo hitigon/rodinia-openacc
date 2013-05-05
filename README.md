@@ -32,4 +32,6 @@ Run awktime.sh for getting total execution time of CPU and GPU.
 To-do:
 -----
 
-Update the awktime.sh
+> Update the awktime.sh
+> Streamcluster is not correct, rewrite later
+> Others should be tested and optimized
