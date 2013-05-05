@@ -1,0 +1,2 @@
+srun -N1 --gres=gpu:1 ./kmeans -o -i ../../data/kmeans/kdd_cup
+./kmeans -o -i ../../data/kmeans/kdd_cup
