@@ -27,11 +27,7 @@ Profile:
 Please set the environment variable:
 export CUDA_PROFILE=1
 
-Run awktime.sh for getting total execution time of CPU and GPU.
-
 To-do:
 -----
 
-* Update the awktime.sh
-* Streamcluster is not correct, rewrite later
-* Others should be tested and optimized
+Nothing for now
