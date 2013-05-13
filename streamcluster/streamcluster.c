@@ -250,238 +250,155 @@ float pspeedy(Points *points, float z, long *kcenter, int pid)
 /* z is the facility cost, x is the number of this point in the array 
    points */
 
-double pgain(long x, Points *points, double z, long int *numcenters, int pid)
+double pgain(long x, Points *points, double z, long int *numcenters, float *coord)
 {
   //  printf("pgain pthread %d begin\n",pid);
 #ifdef PROFILE
   double t0 = gettime();
 #endif	
 
-  //my block
-  long bsize = points->num/nproc;
-  long k1 = bsize * pid;
-  long k2 = k1 + bsize;
-  if( pid == nproc-1 ) k2 = points->num;
 
-  int i;
-  int number_of_centers_to_close = 0;
+  int stride  = *numcenters + 1;      // size of each work_mem segment
+  int K   = *numcenters ;       // number of centers
+  int num   =  points->num;       // number of points
+  int dim   =  points->dim;       // number of dimension
+  int nThread =  num;           // number of threads == number of data points
 
-  double *work_mem;
-  double gl_cost_of_opening_x;
-  int gl_number_of_centers_to_close;
-	
-  //each thread takes a block of working_mem.
-  int stride = *numcenters+1;
-  //make stride a multiple of CACHE_LINE
-  /*int cl = CACHE_LINE/sizeof(double);*/
-  /*if( stride % cl != 0 ) { */
-    /*stride = cl * ( stride / cl + 1);*/
-  /*}*/
-  int K = stride - 1 ; // K==*numcenters
+  int i, j;
+
+  float *work_mem = (float*) malloc(stride * (nThread + 1) * sizeof(float));
+  Point_Struct *p = (Point_Struct*)malloc(num * sizeof(Point_Struct));
   
-  //my own cost of opening x
-  double cost_of_opening_x = 0;
-
-  if( pid==0 )    { 
-    work_mem = (double*) malloc(stride*(k2+1)*sizeof(double));
-    gl_cost_of_opening_x = 0;
-    gl_number_of_centers_to_close = 0;
-  }
-
-  /*For each center, we have a *lower* field that indicates 
-    how much we will save by closing the center. 
-    Each thread has its own copy of the *lower* fields as an array.
-    We first build a table to index the positions of the *lower* fields. 
-  */
-	
   int count = 0;
-  for( int i = k1; i < k2; i++ ) {
+  for(i = 0; i < num; i++ ) {
     if( is_center[i] ) {
       center_table[i] = count++;
-    }		
-  }	
-  work_mem[pid*stride] = count;
+    }   
+  } 
 
-  if( pid == 0 ) {
-    int accum = 0;
-    for( int p = 0; p < nproc; p++ ) {
-      int tmp = (int)work_mem[p*stride];
-      work_mem[p*stride] = accum;
-      accum += tmp;
-    }
+  for (i = 0; i < num; i++) {
+    p[i].weight = ((points->p)[i]).weight;
+    p[i].assign = ((points->p)[i]).assign;
+    p[i].cost = ((points->p)[i]).cost;
   }
-
-  for( int i = k1; i < k2; i++ ) {		
-    if( is_center[i] ) {
-      center_table[i] += (int)work_mem[pid*stride];
-    }		
-  }	
-	
+  
   //now we finish building the table. clear the working memory.
-  memset(switch_membership + k1, 0, (k2-k1)*sizeof(bool));
-  memset(work_mem+pid*stride, 0, stride*sizeof(double));
-  if( pid== 0 ) memset(work_mem+k2*stride,0,stride*sizeof(double));
-	
+  
+  memset(switch_membership, 0, num * sizeof(bool));
+  memset(work_mem, 0, stride * (nThread+1) * sizeof(float));
 #ifdef PROFILE
   double t1 = gettime();
-  if( pid == 0 ) time_gain_init += t1-t0;
+  time_gain_init += t1-t0;
 #endif
-  //my *lower* fields
-  /*double* lower = &work_mem[pid*stride];*/
-  //global *lower* fields
-  /*double* gl_lower = &work_mem[nproc*stride];*/
-	
-  Point * p = points->p;
-  int dim = points->dim;
-  //int num = points->num;
-
-
-  float *coord = (float *)malloc(dim*k2*sizeof(float));
-
-  for(int i=0; i<dim; i++)
-  {
-    for(int j=0; j<k2; j++)
-    {
-      coord[(k2*i)+j] = points->p[j].coord[i];
-    }
-  }
 
 //#pragma acc parallel loop reduction(+: cost_of_opening_x)
-//#pragma acc parallel loop gang(16), vector(32)
-#pragma acc kernels copy(p[0:k2], coord[0:dim*k2], work_mem[0:(k2+1)*stride], center_table[0:k2], switch_membership[0:k2])
+#pragma acc kernels copyin(p[0:num], center_table[0:num]), copy(switch_membership[0:num], work_mem[0:stride*(nThread+1)]), private(i, j)
 {
   #pragma acc loop independent
-  for ( i = k1; i < k2; i++ ) {
-    /*float x_cost = dist(points->p[i], points->p[x], points->dim) */
-      /** points->p[i].weight;*/
-    /*float current_cost = points->p[i].cost;*/
-    double *lower = &work_mem[i*stride];
-    float x_cost = dist_acc(i, x, k2, dim, coord) * p[i].weight;
+  for (i = 0; i < num; i++ ) {
+      /*
+    float coord_c[256];
+    for (j = 0; j < dim; j++){
+        coord_c[j] = coord[j*num + x];
+    }
+    */
+    //double *lower = &work_mem[i*stride];
+    //float x_cost = dist_acc(i, x, num, dim, coord) * p[i].weight;
+
+    float x_cost = 0.0;
+    for (j = 0; j < dim; j++) {
+        float tmp = coord[(j*num) + i] - coord[(j*num)+x];
+        /*float tmp = coord[(j*num) + i] - coord_c[i];*/
+        x_cost += tmp * tmp;
+    }
+    x_cost += p[i].weight;
 
     float current_cost = p[i].cost;
+    int base = i*stride;
         
-    if ( x_cost < current_cost ) {
-
-      // point i would save cost just by switching to x
-      // (note that i cannot be a median, 
-      // or else dist(p[i], p[x]) would be 0)			
+    if ( x_cost < current_cost ) {	
       switch_membership[i] = 1;
-      
-      /*cost_of_opening_x += x_cost - current_cost;*/
-      lower[K] += x_cost - current_cost;
+      int addr_1 = base + K;
+      work_mem[addr_1] = x_cost - current_cost;
+      //lower[K] += x_cost - current_cost;
 
     } else {
 
-      // cost of assigning i to x is at least current assignment cost of i
-
-      // consider the savings that i's **current** median would realize
-      // if we reassigned that median and all its members to x;
-      // note we've already accounted for the fact that the median
-      // would save z by closing; now we have to subtract from the savings
-      // the extra cost of reassigning that median and its members 
-      //int assign = points->p[i].assign;
       int assign = p[i].assign;
-      lower[center_table[assign]] += current_cost - x_cost;			
+      int addr_2 = base + center_table[assign];
+      work_mem[addr_2] += current_cost - x_cost;
+      //lower[center_table[assign]] += current_cost - x_cost;			
     }
   }
 }
 
-    free(coord);
-
 #ifdef PROFILE
   double t2 = gettime();
-  if( pid==0){
-    time_gain_dist += t2 - t1;
-  }
+  
+  time_gain_dist += t2 - t1;
 #endif	
-  // at this time, we can calculate the cost of opening a center
-  // at x; if it is negative, we'll go through with opening it
-    gl_cost_of_opening_x = z;
-  double* gl_lower = &work_mem[k2*stride];
-	
-  for ( int i = k1; i < k2; i++ ) {
-    if( is_center[i] ) {
-      double low = z;
-      //aggregate from all threads
-      for( int p = 0; p < nproc; p++ ) {
-				low += work_mem[center_table[i]+p*stride];
-      }
-      gl_lower[center_table[i]] = low;
-			//printf("%d : %f %f\n", i, low, work_mem[center_table[i]+stride]);
-      if ( low > 0 ) {
-	// i is a median, and
-	// if we were to open x (which we still may not) we'd close i
 
-	// note, we'll ignore the following quantity unless we do open x
+  int number_of_centers_to_close = 0;
+  float gl_cost_of_opening_x = z;
+  float *gl_lower = &work_mem[stride * nThread];
+
+  for (i = 0; i < num; i++ ) {
+    if( is_center[i] ) {
+
+      double low = z;
+
+      for(j = 0; j < num; j++ ) {
+				low += work_mem[j*stride + center_table[i]];
+      }
+
+      gl_lower[center_table[i]] = low;
+
+      if ( low > 0 ) {
+
         ++number_of_centers_to_close;  
-        /*cost_of_opening_x -= low;*/
-        work_mem[i*stride+K] = low;
+        work_mem[i*stride+K] -= low;
       }
     }
     gl_cost_of_opening_x += work_mem[i*stride+K];
   }
-		
-  //use the rest of working memory to store the following
-  /*work_mem[pid*stride + K] = number_of_centers_to_close;*/
-  /*work_mem[pid*stride + K+1] = cost_of_opening_x;*/
 	
-
-  /*if( pid==0 ) {*/
-    /*//aggregate*/
-    /*for( int p = 0; p < nproc; p++ ) {*/
-      /*gl_number_of_centers_to_close += (int)work_mem[p*stride + K];*/
-      /*gl_cost_of_opening_x += work_mem[p*stride+K+1];*/
-    /*}*/
-  /*}*/
-
-  // Now, check whether opening x would save cost; if so, do it, and
-  // otherwise do nothing
-
   if ( gl_cost_of_opening_x < 0 ) {
     //  we'd save money by opening x; we'll do it
-    for ( int i = k1; i < k2; i++ ) {
-      bool close_center = gl_lower[center_table[points->p[i].assign]] > 0 ;
+    for (i = 0; i < num; i++) {
+
+      bool close_center = gl_lower[center_table[points->p[i].assign]] > 0;
+
       if ( switch_membership[i] || close_center ) {
-				// Either i's median (which may be i itself) is closing,
-				// or i is closer to x than to its current median
-				points->p[i].cost = points->p[i].weight *
-					dist(points->p[i], points->p[x], points->dim);
-				points->p[i].assign = x;
+				points->p[i].cost = dist(points->p[i], points->p[x], dim) * points->p[i].weight;
+        points->p[i].assign = x;
       }
     }
 		
-    for( int i = k1; i < k2; i++ ) {
+    for(i = 0; i < num; i++) {
       if( is_center[i] && gl_lower[center_table[i]] > 0 ) {
 				is_center[i] = false;
       }
     }
-    if( x >= k1 && x < k2 ) {
+
+    if( x >= 0 && x < num ) {
       is_center[x] = true;
     }
 
-    /*if( pid==0 ) {*/
-      *numcenters = *numcenters + 1 - number_of_centers_to_close;
-    /*}*/
+    *numcenters = *numcenters + 1 - number_of_centers_to_close;
   }
   else {
-    /*if( pid==0 )*/
       gl_cost_of_opening_x = 0;  // the value we'll return
   }
 
-  /*if( pid == 0 ) {*/
-    free(work_mem);
-    //    free(is_center);
-    //    free(switch_membership);
-    //    free(proc_cost_of_opening_x);
-    //    free(proc_number_of_centers_to_close);
-  /*}*/
+
+  free(p);
+  free(work_mem);
 
 #ifdef PROFILE
   double t3 = gettime();
-  if( pid==0 )
   time_gain += t3-t0;
 #endif
-	//printf("cost=%f\n", -gl_cost_of_opening_x);
+  iter++;
   return -gl_cost_of_opening_x;
 }
 
@@ -505,6 +422,20 @@ float pFL(Points *points, int *feasible, int numfeasible,
   change = cost;
   /* continue until we run iter iterations without improvement */
   /* stop instead if improvement is less than e */
+  int num   =  points->num;
+  int dim   =  points->dim; 
+  float *coord = (float*) malloc(num * dim * sizeof(float));
+
+  for(int j=0; j<dim; j++)
+  {
+      for(int k=0; k<num; k++)
+      {
+        coord[(num*j)+k] = points->p[k].coord[j];
+      }
+  }
+
+#pragma acc data copyin(coord[0:dim*num])
+{
   while (change/cost > 1.0*e) {
     change = 0.0;
     numberOfPoints = points->num;
@@ -520,7 +451,7 @@ float pFL(Points *points, int *feasible, int numfeasible,
     for (i=0;i<iter;i++) {
       x = i%numfeasible;
 			//printf("iteration %d started********\n", i);
-      change += pgain(feasible[x], points, z, k, pid);
+      change += pgain(feasible[x], points, z, k, coord);
 			c++;
 			//printf("iteration %d finished @@@@@@\n", i);
     }
@@ -534,6 +465,8 @@ float pFL(Points *points, int *feasible, int numfeasible,
 #endif
 
   }
+}
+  free(coord);
   return(cost);
 }
 
@@ -953,6 +886,7 @@ void streamCluster( long n,
 
     fprintf(stderr,"finish local search\n");
     contcenters(&points);
+    isCoordChanged = true;
     if( kfinal + centers.num > centersize ) {
       //here we don't handle the situation where # of centers gets too large. 
       fprintf(stderr,"oops! no more space for centers\n");
@@ -1050,6 +984,7 @@ int main(int argc, char **argv)
   __parsec_roi_begin();
 #endif
 
+  isCoordChanged = false;
 
   streamCluster(n, kmin, kmax, dim, chunksize, clustersize, outfilename);
 
@@ -1058,9 +993,12 @@ int main(int argc, char **argv)
   __parsec_roi_end();
 #endif
 
-  double t2 = gettime();
+  //free(coord);
+  //free(p);
 
+  double t2 = gettime();
   printf("time = %lf\n",t2-t1);
+
 
 
   printf("time pgain = %lf\n", time_gain);

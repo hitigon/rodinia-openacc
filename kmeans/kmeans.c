@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
            int     npoints = 0;
            
            float   len;
-		   //double  timing;
+		   double  timing;
 
            int     isRMSE = 0;     
            float   rmse;
@@ -143,8 +143,6 @@ int main(int argc, char **argv) {
                       break;
             case 'l': nloops = atoi(optarg);
                       break;
-            //case 'k': nclusters = atoi(optarg);
-              //        break;
             case '?': usage(argv[0]);
                       break;
             default: usage(argv[0]);
@@ -153,8 +151,6 @@ int main(int argc, char **argv) {
     }
 
     if (filename == 0) usage(argv[0]);
-
-    //numAttributes = numObjects = 0;
 
     /* from the input file, get the numAttributes and numObjects ------------*/
    
@@ -232,21 +228,8 @@ int main(int argc, char **argv) {
     srand(7);
     memcpy(features[0], buf, npoints*nfeatures*sizeof(float));
     free(buf);
-	//timing = omp_get_wtime();
-
-    /*
-    for (i=0; i<nloops; i++) {
-        		
-        cluster_centres = NULL;
-        cluster(numObjects,
-                numAttributes,
-                attributes,           
-                nclusters,
-                threshold,
-                &cluster_centres   
-               );
-    }
-    */
+   
+    timing = wtime();
    
     cluster_centres = NULL;
     index = cluster(npoints,               /* number of data points */
@@ -262,9 +245,10 @@ int main(int argc, char **argv) {
                     nloops);                /* number of iteration for each number of clusters */  
    
 
-    
+    timing = wtime() - timing;
     //timing = omp_get_wtime() - timing;
 
+    printf("Time for Cluster(): %f\n", timing);
 	//printf("number of Clusters %d\n",nclusters); 
 	//printf("number of Attributes %d\n\n",numAttributes); 
     /*printf("Cluster Centers Output\n"); 

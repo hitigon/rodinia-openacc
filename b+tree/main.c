@@ -2188,16 +2188,13 @@ main(	int argc,
 
 				// New OpenMP kernel, same algorighm across all versions(OpenMP, CUDA, OpenCL) for comparison purposes
 				kernel_cpu(	cores_arg,
-
 							records,
-                            records_mem,
+              records_mem,
 							knodes,
 							knodes_elem,
-
 							order,
 							maxheight,
 							count,
-
 							currKnode,
 							offset,
 							keys,
@@ -2224,7 +2221,7 @@ main(	int argc,
 				  fprintf(pFile, "%d    %d\n",i, ans[i].value);
 				}
 				fprintf(pFile, " \n");
-                                fclose(pFile);
+        fclose(pFile);
 
 				// free memory
 				free(currKnode);

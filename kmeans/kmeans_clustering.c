@@ -149,12 +149,14 @@ float rms_err   (float **feature,         /* [npoints][nfeatures] */
 
 /*----< kmeans_clustering() >---------------------------------------------*/
 float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
+                            float *feature_d,
                           int     nfeatures,
                           int     npoints,
                           int     nclusters,
                           float   threshold,
                           int    *membership, /* out: [npoints] */
-                          int    *membership_tmp) 
+                          int    *membership_tmp
+                          ) 
 {
 
     int      i, j, k, n=0, index, loop=0, temp;
@@ -194,16 +196,6 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
         initial_points--;
         n++;
     }
-
-
-    /*
-    for (i=0; i<nclusters; i++) {
-        //n = (int)rand() % npoints;
-        for (j=0; j<nfeatures; j++)
-            clusters[i][j] = feature[n][j];
-		n++;
-    }
-    */
    
     for (i=0; i<npoints; i++)
 		membership[i] = -1;
@@ -217,15 +209,19 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
         new_centers[i] = new_centers[i-1] + nfeatures;
  
 
-    float *clusters_d, *feature_d;
+    float *clusters_d;//, *feature_d;
     clusters_d = (float *)malloc(nclusters * nfeatures * sizeof(float));
-    feature_d = (float *)malloc(npoints * nfeatures * sizeof(float));
+    //feature_d = (float *)malloc(npoints * nfeatures * sizeof(float));
     
+    /*
     for (i = 0; i< npoints; i++) {
         for (j = 0; j < nfeatures; j++)
             feature_d[j * npoints + i] = feature[i][j];
     }
+    */
 
+//#pragma acc data pcopyin(feature_d[0:npoints * nfeatures])
+//{
     do {
 		
         delta = 0.0;
@@ -235,7 +231,7 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
                 clusters_d[i * nfeatures + j] = clusters[i][j];
         }
 
-#pragma acc kernels pcopy(membership_tmp[0:npoints]), pcopyin(feature_d[0:npoints * nfeatures], clusters_d[0:nclusters * nfeatures])
+#pragma acc kernels copy(membership_tmp[0:npoints]), copyin(clusters_d[0:nclusters * nfeatures])
 {
 #pragma acc loop independent, private(j, k, dist, ans, min_dist, index) 
         for (i = 0; i < npoints; i++) {
@@ -280,7 +276,6 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
             }
         }
 
-        printf("delta: %f, index: %d\n", delta, index);
         
 
 	/* replace old cluster centers with new_centers */
@@ -296,9 +291,9 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
         c++;
         //delta /= npoints;
     } while ((delta > threshold) && (loop++ < 500));
-
+//}
     free(clusters_d);
-    free(feature_d);
+    //free(feature_d);
     printf("iterated %d times\n", c);
   
     free(new_centers[0]);

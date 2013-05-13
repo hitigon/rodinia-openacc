@@ -76,7 +76,7 @@ kernel_cpu_2(	int cores_arg,
 	int threadsPerBlock;
 	threadsPerBlock = order < 1024 ? order : 1024;
 
-	time1 = get_time();
+	
 
 	//======================================================================================================================================================150
 	//	PROCESS INTERACTIONS
@@ -86,16 +86,14 @@ kernel_cpu_2(	int cores_arg,
 	int thid;
 	int bid;
 
-#pragma acc kernels copy(knodes[0:knodes_elem], currKnode[0:count], offset[0:count], lastKnode[0:count], offset_2[0:count], start[0:count], end[0:count], recstart[0:count], reclength[0:count]) 
+#pragma acc data copy(knodes[0:knodes_elem], currKnode[0:count], offset[0:count], lastKnode[0:count], offset_2[0:count], start[0:count], end[0:count], recstart[0:count], reclength[0:count])
+{
+	time1 = get_time();
+#pragma acc kernels private(thid, bid, i)
 {
 #pragma acc loop independent
 	// process number of querries
 	for(bid = 0; bid < count; bid++){
-
-		// process levels of the tree
-		/*for(i = 0; i < maxheight; i++){*/
-
-			// process all leaves at each level
 #pragma acc loop independent
 		for(thid = 0; thid < threadsPerBlock; thid++){
 
@@ -133,31 +131,11 @@ kernel_cpu_2(	int cores_arg,
 				reclength[bid] = knodes[lastKnode[bid]].indices[thid] - recstart[bid]+1;
 			}
         }
-
-		// process leaves
-		/*for(thid = 0; thid < threadsPerBlock; thid++){*/
-
-			/*// Find the index of the starting record*/
-			/*if(knodes[currKnode[bid]].keys[thid] == start[bid]){*/
-				/*recstart[bid] = knodes[currKnode[bid]].indices[thid];*/
-			/*}*/
-
-		/*}*/
-
-		// process leaves
-		/*for(thid = 0; thid < threadsPerBlock; thid++){*/
-
-			/*// Find the index of the ending record*/
-			/*if(knodes[lastKnode[bid]].keys[thid] == end[bid]){*/
-				/*reclength[bid] = knodes[lastKnode[bid]].indices[thid] - recstart[bid]+1;*/
-			/*}*/
-
-		/*}*/
-
 	}
 }
 	time2 = get_time();
-
+}
+	
 	//======================================================================================================================================================150
 	//	DISPLAY TIMING
 	//======================================================================================================================================================150

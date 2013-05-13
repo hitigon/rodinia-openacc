@@ -6,6 +6,7 @@
 #include <math.h>
 #include <sys/resource.h>
 #include <limits.h>
+#include <openacc.h>
 
 #ifdef ENABLE_PARSEC_HOOKS
 #include <hooks.h>
@@ -22,7 +23,7 @@
 /* higher ITER also scales the running time almost linearly */
 #define ITER 3 // iterate ITER* k log k times; ITER >= 1
 
-#define PRINTINFO //comment this out to disable output
+//#define PRINTINFO //comment this out to disable output
 #define PROFILE // comment this out to disable instrumentation code
 //#define ENABLE_THREADS  // comment this out to disable threads
 //#define INSERT_WASTE //uncomment this to insert waste computation into dist function
@@ -49,6 +50,12 @@ typedef struct {
   Point *p; /* the array itself */
 } Points;
 
+typedef struct {
+    float weight;
+    long assign;
+    float cost;
+} Point_Struct;
+
 typedef struct
 {
   Points* points;
@@ -62,6 +69,14 @@ static bool* switch_membership; //whether to switch membership in pgain
 static bool* is_center; //whether a point is a center
 static int* center_table; //index table of centers
 float* block;
+
+//float *work_mem;
+//float *coord;
+//Point_Struct *p;
+
+bool isCoordChanged;
+
+static int iter = 0;
 
 static int nproc; //# of threads
 static int c, d;

@@ -2,9 +2,6 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
-//#include <omp.h>
-//#define NUM_THREAD 4
-//#define OPEN
 
 typedef int bool;
 #define true 1
@@ -13,6 +10,8 @@ typedef int bool;
 int no_of_nodes;
 int edge_list_size;
 FILE *fp;
+
+extern double wtime(void);
 
 //Structure to hold a node information
 typedef struct
@@ -118,29 +117,17 @@ void BFSGraph( int argc, char** argv)
 	
 	printf("Start traversing the tree\n");
 	
-
-	//timer gpu_timer;
-	//double gpu_time = 0.0;		
-	//gpu_timer.reset();
-	//gpu_timer.start();
-
+#pragma acc data copy(h_graph_mask[0:no_of_nodes], h_graph_nodes[0:no_of_nodes], h_graph_visited[0:no_of_nodes], h_cost[0:no_of_nodes], h_graph_edges[0:edge_list_size], h_updating_graph_mask[0:no_of_nodes])
+{
+	double timing;
+	timing = wtime();
 
 	int k=0;
-    
 	bool stop;
 	do
 	{
 		//if no thread changes this value then the loop stops
 		stop=false;
-
-/*
-#ifdef OPEN
-		omp_set_num_threads(num_omp_threads);
-		#pragma omp parallel for 
-#endif
-*/
-#pragma acc data copy(h_graph_mask[0:no_of_nodes], h_graph_nodes[0:no_of_nodes], h_graph_visited[0:no_of_nodes], h_cost[0:no_of_nodes], h_graph_edges[0:edge_list_size], h_updating_graph_mask[0:no_of_nodes])
-{
 	#pragma acc kernels 
 	{
         #pragma acc loop independent
@@ -180,18 +167,14 @@ void BFSGraph( int argc, char** argv)
 		}
 	}
 	
-}
+
 		k++;
 	}
 	while(stop);
 
-
-	//gpu_timer.stop();
-	//gpu_time = gpu_timer.getTimeInSeconds();
-
-	//std::cout<<"GPU time(s):"<<gpu_time<<std::endl;		
-
-
+	timing = wtime() - timing;
+	printf("Time for Kernel: %f\n", timing);
+}
 	//Store the result into a file
 	FILE *fpo = fopen("result.txt","w");
 	for(int i=0;i<no_of_nodes;i++)

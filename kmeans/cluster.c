@@ -72,7 +72,7 @@
 
 #include "kmeans.h"
 
-float   min_rmse_ref = FLT_MAX; 
+float   min_rmse_ref = FLT_MAX;
 
 /*---< cluster() >-----------------------------------------------------------*/
 int cluster(int      npoints,      /* number of input objects */
@@ -92,9 +92,10 @@ int cluster(int      npoints,      /* number of input objects */
     int     index = 0;
     int     rmse;
     int    *membership;
-    int     *membership_tmp;
     float **tmp_cluster_centres;
-    int     i;
+    int     i, j;
+    int     *membership_tmp;
+    float   *feature_d;
 
     membership = (int*) malloc(npoints * sizeof(int));
 
@@ -104,16 +105,30 @@ int cluster(int      npoints,      /* number of input objects */
 
         membership_tmp = (int*) malloc(npoints * sizeof(int));
 
-        
+        for(i = 0;i < npoints;i++) {
+            membership_tmp[i] = -1;
+        }
+
+        feature_d = (float *)malloc(npoints * nfeatures * sizeof(float));
+
+        for (i = 0; i< npoints; i++) {
+            for (j = 0; j < nfeatures; j++)
+                feature_d[i + j * npoints] = features[i][j];
+        }
+
+#pragma acc data copyin(feature_d[0:npoints * nfeatures])
+{
         for (i = 0; i < nloops; i++)
         {
             tmp_cluster_centres = kmeans_clustering(features,
+                                            feature_d,
                                             nfeatures,
                                             npoints,
                                             nclusters,
                                             threshold,
                                             membership,
-                                            membership_tmp);
+                                            membership_tmp
+                                            );
 
             if (*cluster_centres) {
                 free((*cluster_centres)[0]);
@@ -142,8 +157,10 @@ int cluster(int      npoints,      /* number of input objects */
             }   
 
         }
+}
 
         free(membership_tmp);
+        free(feature_d);
     }
 	
 
@@ -152,4 +169,3 @@ int cluster(int      npoints,      /* number of input objects */
 
     return index;
 }
-

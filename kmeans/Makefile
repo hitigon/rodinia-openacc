@@ -2,11 +2,14 @@
 CC = hmpp --openacc-target=CUDA --codelet-required gcc
 CC_FLAGS = -g -O2 
 
-kmeans: cluster.o getopt.o kmeans.o kmeans_clustering.o 
-	$(CC) $(CC_FLAGS) cluster.o getopt.o kmeans.o kmeans_clustering.o  -o kmeans
+kmeans: cluster.o getopt.o kmeans.o kmeans_clustering.o wtime.o
+	$(CC) $(CC_FLAGS) cluster.o getopt.o kmeans.o kmeans_clustering.o wtime.o -o kmeans
 
 %.o: %.[ch]
 	$(CC) $(CC_FLAGS) $< -c
+
+wtime.o: wtime.c 
+	$(CC) $(CC_FLAGS) wtime.c -c
 
 cluster.o: cluster.c 
 	$(CC) $(CC_FLAGS) cluster.c -c
